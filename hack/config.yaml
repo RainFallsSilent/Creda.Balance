@@ -1,14 +1,8 @@
-
-# CLI tool, only in development environment.
-# https://goframe.org/pages/viewpage.action?pageId=3673173
+# GoFrame CLI tool configuration.
 gfcli:
-  docker:
-    build: "-a amd64 -s linux -p temp -ew"
-    tagPrefixes:
-      - my.image.pub/my-app
-
   gen:
     dao:
-    - link:     "mysql:root:12345678@tcp(127.0.0.1:3306)/test"
-      tables:   "order,products"
-      jsonCase: "CamelLower"
+      - link: "pgsql:jzh:jzh@tcp(127.0.0.1:5432)/postgres"
+        tables: "balance, price"
+        descriptionTag: true
+        noModelComment: true

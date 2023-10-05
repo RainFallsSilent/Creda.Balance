@@ -69,4 +69,6 @@ func syncAndStore(ctx context.Context, coinName, url string, startHeight uint32)
 	json.Unmarshal(body, &result)
 
 	g.Log().Info(ctx, result)
+
+	
 }
