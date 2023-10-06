@@ -84,7 +84,6 @@ func (c *BalanceDB) get(address []byte, coinId uint32, day uint32) (balance []by
 	}
 	balanceData, err := c.db.Get(bi.Key(), nil)
 	if err != nil {
-		println("get balance error:", err)
 		return nil, err
 	}
 

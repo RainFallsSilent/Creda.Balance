@@ -117,13 +117,11 @@ func syncAndStore(ctx context.Context, coinName, url string, startHeight uint32)
 
 	balance, err = db.Balance().Get([]byte("address"), 2, 3)
 	if err != nil {
+		if err.Error() == "leveldb: not found" {
+			g.Log().Info(ctx, "day 3 but coin id 2 balance is nil")
+			return
+		}
 		g.Log().Error(ctx, err)
 		return
-	}
-	if balance == nil {
-		g.Log().Info(ctx, "day 3 but coin id 2 balance is nil")
-		return
-	} else {
-		g.Log().Info(ctx, "day 3 but coin id 2 balance:", big.NewInt(0).SetBytes(balance))
 	}
 }
