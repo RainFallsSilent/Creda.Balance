@@ -9,17 +9,17 @@ import (
 )
 
 type PriceInfo struct {
-	coinId uint32
-	day    uint32 // example 20230101
-	price  []byte
+	CoinId uint32
+	Day    uint32 // example 20230101
+	Price  []byte
 }
 
 func (p *PriceInfo) Key() []byte {
-	return toKey(LDBPriceKey, append(utility.Uint32ToBytes(p.coinId), utility.Uint32ToBytes(p.day)...)...)
+	return toKey(LDBPriceKey, append(utility.Uint32ToBytes(p.CoinId), utility.Uint32ToBytes(p.Day)...)...)
 }
 
 func (p *PriceInfo) Value() []byte {
-	return p.price
+	return p.Price
 }
 
 type PriceDB struct {
