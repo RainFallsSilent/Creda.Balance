@@ -1,3 +1,3 @@
 DROP TABLE price;
 DROP TABLE balance;
-DROP DOMAIN valid_name;
+DROP TABLE schema_migrations;

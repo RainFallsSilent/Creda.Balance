@@ -7,7 +7,7 @@ package entity
 // Price is the golang structure for table price.
 type Price struct {
 	Id        int    `json:"id"        description:""`
-	CoinName  string `json:"coinName"  description:""`
+	CoinId    string `json:"coinId"    description:""`
 	Price     string `json:"price"     description:""`
 	Timestamp int    `json:"timestamp" description:""`
 }

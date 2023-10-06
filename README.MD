@@ -24,7 +24,7 @@ go run balance/main.go
 - Migration Up
 
   ```bash
-  export POSTGRESQL_URL='postgres://jzh:jzh@localhost:5432/postgres?sslmode=disable'
+  export POSTGRESQL_URL='postgres://postgres:password@localhost:5432/postgres?sslmode=disable'
 
   migrate -database ${POSTGRESQL_URL} -path migrate -database ${POSTGRESQL_URL} -path manifest/migrations up
   ```

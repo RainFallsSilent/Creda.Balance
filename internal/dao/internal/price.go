@@ -21,7 +21,7 @@ type PriceDao struct {
 // PriceColumns defines and stores column names for table price.
 type PriceColumns struct {
 	Id        string //
-	CoinName  string //
+	CoinId    string //
 	Price     string //
 	Timestamp string //
 }
@@ -29,7 +29,7 @@ type PriceColumns struct {
 // priceColumns holds the columns for table price.
 var priceColumns = PriceColumns{
 	Id:        "id",
-	CoinName:  "coin_name",
+	CoinId:    "coin_id",
 	Price:     "price",
 	Timestamp: "timestamp",
 }

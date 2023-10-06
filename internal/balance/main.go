@@ -31,13 +31,14 @@ func SyncBalances(ctx context.Context) {
 	g.Log().Info(ctx, "end sync balances")
 }
 
-type Args struct {
-	A, B int
-}
+const (
+	BTC CoinType = iota
+	ETH
+	Abr
+	// 1000
+)
 
-type Reply struct {
-	Result int
-}
+type CoinType int
 
 func syncAndStore(ctx context.Context, coinName, url string, startHeight uint32) {
 
@@ -70,5 +71,4 @@ func syncAndStore(ctx context.Context, coinName, url string, startHeight uint32)
 
 	g.Log().Info(ctx, result)
 
-	
 }

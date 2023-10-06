@@ -20,18 +20,18 @@ type BalanceDao struct {
 
 // BalanceColumns defines and stores column names for table balance.
 type BalanceColumns struct {
-	Id       string //
-	CoinName string //
-	Address  string //
-	Balance  string //
+	Id        string //
+	Timestamp string //
+	Address   string //
+	TotalUsd  string //
 }
 
 // balanceColumns holds the columns for table balance.
 var balanceColumns = BalanceColumns{
-	Id:       "id",
-	CoinName: "coin_name",
-	Address:  "address",
-	Balance:  "balance",
+	Id:        "id",
+	Timestamp: "timestamp",
+	Address:   "address",
+	TotalUsd:  "total_usd",
 }
 
 // NewBalanceDao creates and returns a new DAO object for table data access.

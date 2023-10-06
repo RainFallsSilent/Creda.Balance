@@ -10,9 +10,9 @@ import (
 
 // Balance is the golang structure of table balance for DAO operations like Where/Data.
 type Balance struct {
-	g.Meta   `orm:"table:balance, do:true"`
-	Id       interface{} //
-	CoinName interface{} //
-	Address  interface{} //
-	Balance  interface{} //
+	g.Meta    `orm:"table:balance, do:true"`
+	Id        interface{} //
+	Timestamp interface{} //
+	Address   interface{} //
+	TotalUsd  interface{} //
 }

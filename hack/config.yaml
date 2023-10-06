@@ -2,7 +2,7 @@
 gfcli:
   gen:
     dao:
-      - link: "pgsql:jzh:jzh@tcp(127.0.0.1:5432)/postgres"
+      - link: "pgsql:postgres:password@tcp(127.0.0.1:5432)/postgres"
         tables: "balance, price"
         descriptionTag: true
         noModelComment: true

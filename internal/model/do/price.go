@@ -12,7 +12,7 @@ import (
 type Price struct {
 	g.Meta    `orm:"table:price, do:true"`
 	Id        interface{} //
-	CoinName  interface{} //
+	CoinId    interface{} //
 	Price     interface{} //
 	Timestamp interface{} //
 }
