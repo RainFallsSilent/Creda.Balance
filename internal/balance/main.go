@@ -5,7 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"io/ioutil"
+	"math/big"
 	"net/http"
+
+	"demo/internal/balance/leveldb"
+	"demo/internal/consts"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gcmd"
@@ -71,4 +75,55 @@ func syncAndStore(ctx context.Context, coinName, url string, startHeight uint32)
 
 	g.Log().Info(ctx, result)
 
+	// store to db
+	db, err := leveldb.NewDataStore(consts.DBPath)
+	if err != nil {
+		g.Log().Error(ctx, err)
+		return
+	}
+
+	db.Balance().BatchPut(
+		[]leveldb.BalanceInfo{
+			{
+				Address: []byte("address"),
+				CoinId:  1,
+				Day:     2,
+				Balance: big.NewInt(1024).Bytes(),
+			},
+		},
+	)
+	db.Balance().Commit()
+
+	balance, err := db.Balance().Get([]byte("address"), 1, 1)
+	if err != nil {
+		g.Log().Error(ctx, err)
+		return
+	}
+	g.Log().Info(ctx, "day 1 balance:", big.NewInt(0).SetBytes(balance))
+
+	balance, err = db.Balance().Get([]byte("address"), 1, 2)
+	if err != nil {
+		g.Log().Error(ctx, err)
+		return
+	}
+	g.Log().Info(ctx, "day 2 balance:", big.NewInt(0).SetBytes(balance))
+
+	balance, err = db.Balance().Get([]byte("address"), 1, 3)
+	if err != nil {
+		g.Log().Error(ctx, err)
+		return
+	}
+	g.Log().Info(ctx, "day 3 balance:", big.NewInt(0).SetBytes(balance))
+
+	balance, err = db.Balance().Get([]byte("address"), 2, 3)
+	if err != nil {
+		g.Log().Error(ctx, err)
+		return
+	}
+	if balance == nil {
+		g.Log().Info(ctx, "day 3 but coin id 2 balance is nil")
+		return
+	} else {
+		g.Log().Info(ctx, "day 3 but coin id 2 balance:", big.NewInt(0).SetBytes(balance))
+	}
 }
