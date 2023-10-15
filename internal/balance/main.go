@@ -269,6 +269,12 @@ func processBlanceEvent(ctx context.Context, coin_history_file string) {
 		}
 
 		// 插入结果到 ods_balance_fake 表
+		tx, err := db.Begin()
+		if err != nil {
+			g.Log().Error(ctx, err)
+		}
+		defer tx.Rollback()
+
 		dateStr := date.Format("2006-01-02")
 		for address, coinBalances := range addressMap {
 			balanceF := new(big.Float)
@@ -301,12 +307,30 @@ func processBlanceEvent(ctx context.Context, coin_history_file string) {
 			}
 
 			// 插入结果到 ods_balance_fake 表
+			// 创建预处理语句
+			stmt, err := tx.Prepare("INSERT INTO ods_balance_fake(date, address, balance) VALUES($1, $2, $3)")
+			if err != nil {
+				g.Log().Error(ctx, err)
+			}
+			defer stmt.Close()
+
+			_, err = stmt.Exec(dateStr, address, balanceF.Text('f', 18))
+			if err != nil {
+				g.Log().Error(ctx, err)
+			}
+
 			insertQuery := fmt.Sprintf("INSERT INTO ods_balance_fake (date, address, balance) VALUES ('%s', '%s', '%s')", dateStr, address, balanceF.Text('f', 18))
-			_, err := db.Exec(insertQuery)
+			_, err = db.Exec(insertQuery)
 			if err != nil {
 				g.Log().Error(ctx, err)
 			}
 		}
+
+		// 提交事务
+		if err := tx.Commit(); err != nil {
+			g.Log().Error(ctx, err)
+		}
 		g.Log().Info(ctx, "Finish processing date", dateStr)
 	}
+
 }
