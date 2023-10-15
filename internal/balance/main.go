@@ -1,12 +1,15 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"io/ioutil"
 	"math/big"
 	"net/http"
+	"os"
+	"time"
 
 	"demo/internal/consts"
 	"demo/internal/leveldb"
@@ -14,11 +17,16 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gcmd"
 	"github.com/gogf/gf/v2/os/gctx"
+
+	"database/sql"
+	"fmt"
+
+	_ "github.com/lib/pq"
 )
 
 func main() {
 	ctx := gctx.New()
-	SyncBalances(ctx)
+	processBlanceEvent(ctx, "coin_history.txt")
 }
 
 func SyncBalances(ctx context.Context) {
@@ -123,5 +131,134 @@ func syncAndStore(ctx context.Context, coinName, url string, startHeight uint32)
 		}
 		g.Log().Error(ctx, err)
 		return
+	}
+}
+
+func processBlanceEvent(ctx context.Context, coin_history_file string) {
+	// 数据库连接信息
+	dbName := "postgres"
+	user := "creda"
+	password := "20231011"
+	db, err := sql.Open("postgres", fmt.Sprintf("user=%s dbname=%s sslmode=disable password=%s", user, dbName, password))
+	if err != nil {
+		g.Log().Error(ctx, err)
+	}
+	defer db.Close()
+
+	// 创建地址余额映射
+	addressMap := make(map[string]map[string]*big.Int)
+
+	// 读取历史价格数据并存储在coinPrices映射中
+	coinPrices := make(map[string]map[string]*big.Float)
+	coinHistoryFile, err := os.Open(coin_history_file)
+	if err != nil {
+		g.Log().Error(ctx, err)
+	}
+	defer coinHistoryFile.Close()
+
+	scanner := bufio.NewScanner(coinHistoryFile)
+	for scanner.Scan() {
+		line := scanner.Text()
+		var coinID, dateStr, priceStr string
+		_, err := fmt.Sscanf(line, "%s %s %s", &coinID, &dateStr, &priceStr)
+		if err != nil {
+			g.Log().Error(ctx, err)
+		}
+
+		_, err = time.Parse("2006-01-02", dateStr)
+		if err != nil {
+			g.Log().Error(ctx, err)
+		}
+
+		price, ok := new(big.Float).SetString(priceStr)
+		if !ok {
+			g.Log().Error(ctx, err)
+		}
+
+		if _, exists := coinPrices[coinID]; !exists {
+			coinPrices[coinID] = make(map[string]*big.Float)
+		}
+		coinPrices[coinID][dateStr] = price
+	}
+
+	// 表名范围
+	startDate := time.Date(2020, 4, 23, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(2023, 10, 13, 0, 0, 0, 0, time.UTC)
+
+	for date := startDate; date.Before(endDate); date = date.AddDate(0, 0, 1) {
+		tableName := "event" + date.Format("20060102")
+
+		// 查询表
+		query := fmt.Sprintf("SELECT coinid, fromaddress, toaddress, value FROM %s", tableName)
+		rows, err := db.Query(query)
+		if err != nil {
+			g.Log().Error(ctx, err)
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var coinID, fromAddress, toAddress string
+			var value []uint8
+			if err := rows.Scan(&coinID, &fromAddress, &toAddress, &value); err != nil {
+				g.Log().Error(ctx, err)
+			}
+
+			intValue, ok := new(big.Int).SetString(string(value), 10)
+			if !ok {
+				g.Log().Error(ctx, "Failed to convert value to *big.Int")
+			}
+
+			// 更新addressMap
+			if _, exists := addressMap[fromAddress]; !exists {
+				addressMap[fromAddress] = make(map[string]*big.Int)
+			}
+			if _, exists := addressMap[toAddress]; !exists {
+				addressMap[toAddress] = make(map[string]*big.Int)
+			}
+
+			// 扣除 fromAddress 的余额
+			if balance, exists := addressMap[fromAddress][coinID]; exists {
+				balance.Sub(balance, intValue)
+			} else {
+				addressMap[fromAddress][coinID] = new(big.Int).Neg(intValue)
+			}
+
+			// 增加 toAddress 的余额
+			if balance, exists := addressMap[toAddress][coinID]; exists {
+				balance.Add(balance, intValue)
+			} else {
+				addressMap[toAddress][coinID] = new(big.Int).Set(intValue)
+			}
+		}
+
+		// 插入结果到 ods_balance_fake 表
+		dateStr := date.Format("2006-01-02")
+		for address, coinBalances := range addressMap {
+			balanceF := new(big.Float)
+			for coinID, balance := range coinBalances {
+				price := coinPrices[coinID][dateStr]
+
+				// 计算balance*历史价格
+				if price == nil {
+					price = new(big.Float)
+				}
+				// change balance to positive
+				if balance.Sign() == -1 {
+					balance = new(big.Int).Neg(balance)
+				}
+				balanceWithPrice := new(big.Float).SetInt(balance)
+				balanceWithPrice.Mul(balanceWithPrice, price)
+
+				balanceF.Add(balanceF, balanceWithPrice)
+			}
+
+			// 插入结果到 ods_balance_fake 表
+			insertQuery := fmt.Sprintf("INSERT INTO ods_balance_fake (date, address, balance) VALUES ('%s', '%s', '%s')", dateStr, address, balanceF.Text('f', 18))
+			_, err := db.Exec(insertQuery)
+			if err != nil {
+				g.Log().Error(ctx, err)
+			}
+		}
+		g.Log().Info(ctx, "Finish processing date", dateStr)
 	}
 }
