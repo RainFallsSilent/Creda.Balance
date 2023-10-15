@@ -15,6 +15,7 @@ import (
 	"demo/internal/consts"
 	"demo/internal/leveldb"
 
+	"github.com/gogf/gf/util/gconv"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gcmd"
 	"github.com/gogf/gf/v2/os/gctx"
@@ -136,8 +137,11 @@ func syncAndStore(ctx context.Context, coinName, url string, startHeight uint32)
 }
 
 func processBlanceEvent(ctx context.Context, coin_history_file string) {
-
-	taskChan := make(chan struct{}, 5)
+	gcount := gcmd.GetArg(1, "5").String()
+	// gcount string to int
+	count := gconv.Int(gcount)
+	g.Log().Info(ctx, "start gorutine count:", count)
+	taskChan := make(chan struct{}, count)
 
 	// 数据库连接信息
 	dbName := "postgres"
@@ -298,8 +302,18 @@ func processTask(
 	addressMap map[string]map[string]*big.Int,
 	coinPrices map[string]map[string]*big.Float,
 	decimals map[string]int,
-	taskChan chan struct{},
-	db *sql.DB) {
+	taskChan chan struct{}) {
+
+	// // 数据库连接信息
+	// dbName := "postgres"
+	// user := "creda"
+	// password := "20231011"
+	// db, err := sql.Open("postgres", fmt.Sprintf("user=%s dbname=%s sslmode=disable password=%s", user, dbName, password))
+	// if err != nil {
+	// 	g.Log().Error(ctx, err)
+	// }
+	// defer db.Close()
+
 	tableName := "ods_balance_" + dateT.Format("20060102")
 
 	exists, err := tableExists(db, tableName)
