@@ -5,6 +5,7 @@ go 1.18
 require github.com/gogf/gf/v2 v2.5.4
 
 require (
+	github.com/gogf/gf v1.16.9 // indirect
 	github.com/golang/snappy v0.0.3 // indirect
 	github.com/itchyny/base58-go v0.1.0 // indirect
 	github.com/lib/pq v1.10.9 // indirect

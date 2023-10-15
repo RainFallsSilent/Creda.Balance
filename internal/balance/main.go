@@ -138,10 +138,14 @@ func syncAndStore(ctx context.Context, coinName, url string, startHeight uint32)
 
 func processBlanceEvent(ctx context.Context, coin_history_file string) {
 	gcount := gcmd.GetArg(1, "5").String()
+	newDB := gcmd.GetArg(2, "false").String()
 	// gcount string to int
-	count := gconv.Int(gcount)
-	g.Log().Info(ctx, "start gorutine count:", count)
-	taskChan := make(chan struct{}, count)
+	goruntineCount := gconv.Int(gcount)
+	g.Log().Info(ctx, "start gorutine count:", goruntineCount)
+	taskChan := make(chan struct{}, goruntineCount)
+
+	newDBBool := gconv.Bool(newDB)
+	g.Log().Info(ctx, "new db:", newDBBool)
 
 	// 数据库连接信息
 	dbName := "postgres"
@@ -228,7 +232,7 @@ func processBlanceEvent(ctx context.Context, coin_history_file string) {
 
 	// 表名范围
 	startDate := time.Date(2020, 4, 23, 0, 0, 0, 0, time.UTC)
-	endDate := time.Date(2023, 10, 13, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(2023, 10, 16, 0, 0, 0, 0, time.UTC)
 
 	for date := startDate; date.Before(endDate); date = date.AddDate(0, 0, 1) {
 
@@ -289,8 +293,24 @@ func processBlanceEvent(ctx context.Context, coin_history_file string) {
 		}
 
 		go func() {
-			processTask(ctx, dateT, newAddressMap, coinPrices, decimals, taskChan, db)
-			<-taskChan
+
+			if newDBBool {
+				dbName := "postgres"
+				user := "creda"
+				password := "20231011"
+				ndb, err := sql.Open("postgres", fmt.Sprintf("user=%s dbname=%s sslmode=disable password=%s", user, dbName, password))
+				if err != nil {
+					g.Log().Error(ctx, err)
+				}
+				defer ndb.Close()
+				processTask(ctx, dateT, newAddressMap, coinPrices, decimals, taskChan, ndb)
+				<-taskChan
+				return
+			} else {
+				processTask(ctx, dateT, newAddressMap, coinPrices, decimals, taskChan, db)
+				<-taskChan
+			}
+
 		}()
 	}
 
@@ -302,17 +322,8 @@ func processTask(
 	addressMap map[string]map[string]*big.Int,
 	coinPrices map[string]map[string]*big.Float,
 	decimals map[string]int,
-	taskChan chan struct{}) {
-
-	// // 数据库连接信息
-	// dbName := "postgres"
-	// user := "creda"
-	// password := "20231011"
-	// db, err := sql.Open("postgres", fmt.Sprintf("user=%s dbname=%s sslmode=disable password=%s", user, dbName, password))
-	// if err != nil {
-	// 	g.Log().Error(ctx, err)
-	// }
-	// defer db.Close()
+	taskChan chan struct{},
+	db *sql.DB) {
 
 	tableName := "ods_balance_" + dateT.Format("20060102")
 
