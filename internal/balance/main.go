@@ -10,6 +10,8 @@ import (
 	"math/big"
 	"net/http"
 	"os"
+	"strconv"
+	"sync"
 	"time"
 
 	"demo/internal/consts"
@@ -227,7 +229,8 @@ func processBlanceEvent(ctx context.Context, coin_history_file string) {
 		tableName := "event" + date.Format("20060102")
 
 		// 查询表
-		query := fmt.Sprintf("SELECT coinid, fromaddress, toaddress, value FROM %s", tableName)
+		var blockNumber string
+		query := fmt.Sprintf("SELECT coinid, fromaddress, toaddress, value, blocknumber FROM %s", tableName)
 		rows, err := db.Query(query)
 		if err != nil {
 			g.Log().Error(ctx, err)
@@ -236,7 +239,7 @@ func processBlanceEvent(ctx context.Context, coin_history_file string) {
 
 		for rows.Next() {
 			var coinID, fromAddress, toAddress, value string
-			if err := rows.Scan(&coinID, &fromAddress, &toAddress, &value); err != nil {
+			if err := rows.Scan(&coinID, &fromAddress, &toAddress, &value, &blockNumber); err != nil {
 				g.Log().Error(ctx, err)
 			}
 
@@ -270,10 +273,29 @@ func processBlanceEvent(ctx context.Context, coin_history_file string) {
 
 		// 插入结果到 ods_balance_fake 表
 		dateStr := date.Format("2006-01-02")
+		negCeloBalances := make([]string, 0)
+		for address, coinBalances := range addressMap {
+			for coinID, balance := range coinBalances {
+				if coinID == "5567" && balance.Sign() == -1 {
+					negCeloBalances = append(negCeloBalances, address)
+					continue
+				}
+			}
+		}
+
+		// 异步并行去调用api拿去负数的地址celo余额
+		newBalances := getBalances(ctx, negCeloBalances, blockNumber)
+
+		var index int
 		for address, coinBalances := range addressMap {
 			balanceF := new(big.Float)
 			for coinID, balance := range coinBalances {
 				price := coinPrices[coinID][dateStr]
+
+				if coinID == "5567" && balance.Sign() == -1 {
+					balance = newBalances[index]
+					index++
+				}
 
 				// 计算balance*历史价格
 				if price == nil {
@@ -309,4 +331,75 @@ func processBlanceEvent(ctx context.Context, coin_history_file string) {
 		}
 		g.Log().Info(ctx, "Finish processing date", dateStr)
 	}
+}
+
+func heightTo16(ctx context.Context, decimalString string) string {
+	// decimalString := "872324"
+
+	decimalValue, err := strconv.Atoi(decimalString)
+	if err != nil {
+		g.Log().Error(ctx, err)
+		return ""
+	}
+
+	hexString := fmt.Sprintf("%X", decimalValue)
+	return fmt.Sprint("0x" + hexString)
+}
+
+func getBalances(ctx context.Context, addreses []string, height string) map[int]*big.Int {
+	url := "https://solitary-responsive-putty.celo-mainnet.quiknode.pro/40a3938f2f03f6ae973996eccf6106a9ab27c418/"
+
+	hexHeight := heightTo16(ctx, height)
+
+	var wg sync.WaitGroup
+
+	results := make(map[int]*big.Int, 0)
+
+	for i, address := range addreses {
+		addr := address
+		index := i
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			rb := `{
+				"method": "eth_getBalance",
+				"params": ["` + addr + `", "` + hexHeight + `"],
+				"id": 1,
+				"jsonrpc": "2.0"
+			}`
+			requestBody := []byte(rb)
+
+			resp, err := http.Post(url, "application/json", bytes.NewBuffer(requestBody))
+			if err != nil {
+				g.Log().Error(ctx, "请求失败:", err)
+				return
+			}
+			defer resp.Body.Close()
+
+			buffer := new(bytes.Buffer)
+			_, err = buffer.ReadFrom(resp.Body)
+			if err != nil {
+				g.Log().Error(ctx, "读取响应失败:", err)
+				return
+			}
+
+			var response struct {
+				Result string `json:"result"`
+			}
+			if err := json.Unmarshal(buffer.Bytes(), &response); err != nil {
+				g.Log().Error(ctx, "JSON解析失败:", err)
+				return
+			}
+			resultHex := response.Result
+			resultBigInt := new(big.Int)
+			resultBigInt.SetString(resultHex[2:], 16)
+
+			results[index] = resultBigInt
+		}()
+	}
+
+	wg.Wait()
+
+	return results
 }
