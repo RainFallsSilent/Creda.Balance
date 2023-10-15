@@ -225,7 +225,7 @@ func processBlanceEvent(ctx context.Context, coin_history_file string) {
 
 	for date := startDate; date.Before(endDate); date = date.AddDate(0, 0, 1) {
 		tableName := "event" + date.Format("20060102")
-
+		g.Log().Info(ctx, "###### start get events")
 		// 查询表
 		query := fmt.Sprintf("SELECT coinid, fromaddress, toaddress, value FROM %s", tableName)
 		rows, err := db.Query(query)
@@ -267,6 +267,8 @@ func processBlanceEvent(ctx context.Context, coin_history_file string) {
 				addressMap[toAddress][coinID] = new(big.Int).Set(intValue)
 			}
 		}
+
+		g.Log().Info(ctx, "###### start save to db")
 
 		// 插入结果到 ods_balance_fake 表
 		tx, err := db.Begin()
@@ -318,13 +320,8 @@ func processBlanceEvent(ctx context.Context, coin_history_file string) {
 			if err != nil {
 				g.Log().Error(ctx, err)
 			}
-
-			insertQuery := fmt.Sprintf("INSERT INTO ods_balance_fake (date, address, balance) VALUES ('%s', '%s', '%s')", dateStr, address, balanceF.Text('f', 18))
-			_, err = db.Exec(insertQuery)
-			if err != nil {
-				g.Log().Error(ctx, err)
-			}
 		}
+		g.Log().Info(ctx, "###### start commit")
 
 		// 提交事务
 		if err := tx.Commit(); err != nil {
