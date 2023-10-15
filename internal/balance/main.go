@@ -148,6 +148,43 @@ func processBlanceEvent(ctx context.Context, coin_history_file string) {
 	// 创建地址余额映射
 	addressMap := make(map[string]map[string]*big.Int)
 
+	// 代币小数位
+	// '0x617f3112bf5397D0467D315cC709EF968D9ba546': {name: 'USDT', coinID: 825, decimals: 6},
+	// '0xef4229c8c3250C675F21BCefa42f58EfbfF6002a': {name: 'USDC', coinID: 3408,decimals: 6},
+	// '0x37f750B7cC259A2f741AF45294f6a16572CF5cAd': {name:'USDC(WormHole)', coinID:20650,decimals:6},
+	// '0xD629eb00dEced2a080B7EC630eF6aC117e614f1b': {name:'WBTC', coinID:3717,decimals:18},
+	// '0x471EcE3750Da237f93B8E339c536989b8978a438': {name:'CELO', coinID:  5567,decimals:18},
+	// '0x29dFce9c22003A4999930382Fd00f9Fd6133Acd1': {name:'SUSHI', coinID:  6758,decimals:18},
+	// '0xB9C8F0d3254007eE4b98970b94544e473Cd610EC':{name:'MIMATIC', coinID:10238,decimals:18},
+	// '0xD8763CBa276a3738E6DE85b4b3bF5FDed6D6cA73':{name:'cEUR', coinID:9467,decimals:18},
+	// '0x9995cc8F20Db5896943Afc8eE0ba463259c931ed':{name:'ETHIX',coinID:8442,decimals:18},
+	// '0x765DE816845861e75A25fCA122bb6898B8B1282a':{name:'cUSD',coinID:7236,decimals:18},
+	// '0x1d18d0386F51ab03E7E84E71BdA1681EbA865F1f':{name:'JMPT',coinID:17334,decimals:18},
+	// '0x27cd006548dF7C8c8e9fdc4A67fa05C2E3CA5CF9':{name:'PLASTIK',coinID:15575,decimals:9},
+	// '0xEe9801669C6138E84bD50dEB500827b776777d28':{name:'O3',coinID:9588,decimals:18},
+	// '0x6e512BFC33be36F2666754E996ff103AD1680Cc9':{name:'ABR',coinID:12212,decimals:18},
+	// '0x00Be915B9dCf56a3CBE739D9B9c202ca692409EC':{name:'UBE',coinID:10808,decimals:18},
+	// '0x17700282592D6917F6A73D0bF8AcCf4D578c131e':{name:'MOO',coinID:13021,decimals:18},
+	// '0xe8537a3d056DA446677B9E9d6c5dB704EaAb4787':{name:'CREAL',coinID:16385,decimals:18},
+	decimals := make(map[string]int) // key: coinID, value: decimals
+	decimals["825"] = 6
+	decimals["3408"] = 6
+	decimals["20650"] = 6
+	decimals["3717"] = 18
+	decimals["5567"] = 18
+	decimals["6758"] = 18
+	decimals["10238"] = 18
+	decimals["9467"] = 18
+	decimals["8442"] = 18
+	decimals["7236"] = 18
+	decimals["17334"] = 18
+	decimals["15575"] = 9
+	decimals["9588"] = 18
+	decimals["12212"] = 18
+	decimals["10808"] = 18
+	decimals["13021"] = 18
+	decimals["16385"] = 18
+
 	// 读取历史价格数据并存储在coinPrices映射中
 	coinPrices := make(map[string]map[string]*big.Float)
 	coinHistoryFile, err := os.Open(coin_history_file)
@@ -197,8 +234,7 @@ func processBlanceEvent(ctx context.Context, coin_history_file string) {
 		defer rows.Close()
 
 		for rows.Next() {
-			var coinID, fromAddress, toAddress string
-			var value []uint8
+			var coinID, fromAddress, toAddress, value string
 			if err := rows.Scan(&coinID, &fromAddress, &toAddress, &value); err != nil {
 				g.Log().Error(ctx, err)
 			}
@@ -246,7 +282,11 @@ func processBlanceEvent(ctx context.Context, coin_history_file string) {
 				if balance.Sign() == -1 {
 					balance = new(big.Int).Neg(balance)
 				}
+				// decimail
+				decimal := decimals[coinID]
+				// balance with decimal * price
 				balanceWithPrice := new(big.Float).SetInt(balance)
+				balanceWithPrice.Quo(balanceWithPrice, new(big.Float).SetInt(big.NewInt(int64(10)).Exp(big.NewInt(int64(10)), big.NewInt(int64(decimal)), nil)))
 				balanceWithPrice.Mul(balanceWithPrice, price)
 
 				balanceF.Add(balanceF, balanceWithPrice)
