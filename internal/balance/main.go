@@ -275,92 +275,110 @@ func processBlanceEvent(ctx context.Context, coin_history_file string) {
 		dateT := date
 
 		taskChan <- struct{}{}
+		// copy addressMap
+		newAddressMap := make(map[string]map[string]*big.Int)
+		for address, coinBalances := range addressMap {
+			newAddressMap[address] = make(map[string]*big.Int)
+			for coinID, balance := range coinBalances {
+				newAddressMap[address][coinID] = new(big.Int).Set(balance)
+			}
+		}
 
 		go func() {
-			tableName := "ods_balance_" + dateT.Format("20060102")
-
-			exists, err := tableExists(db, tableName)
-			if err != nil {
-				g.Log().Error(ctx, err)
-			} else {
-				if exists {
-					g.Log().Info(ctx, "table ", tableName, "exist skip")
-					<-taskChan
-					return
-				} else {
-					createTableSQL := `CREATE TABLE ` + tableName + ` (date VARCHAR(255),address VARCHAR(255),	balance VARCHAR(255));`
-					_, err = db.Exec(createTableSQL)
-					if err != nil {
-						g.Log().Error(ctx, err)
-					}
-					g.Log().Info(ctx, "create table", tableName, "success")
-				}
-			}
-
-			g.Log().Info(ctx, "###### start save to db:", tableName)
-
-			// 插入结果到 ods_balance_fake 表
-			tx, err := db.Begin()
-			if err != nil {
-				g.Log().Error(ctx, err)
-			}
-			defer tx.Rollback()
-
-			dateStr := dateT.Format("2006-01-02")
-			for address, coinBalances := range addressMap {
-				balanceF := new(big.Float)
-				for coinID, balance := range coinBalances {
-					price := coinPrices[coinID][dateStr]
-
-					// 计算balance*历史价格
-					if price == nil {
-						price = new(big.Float)
-					}
-					// change balance to positive
-					if balance.Sign() == -1 {
-						balance = new(big.Int).Neg(balance)
-					}
-					// decimail
-					decimal := decimals[coinID]
-					// balance with decimal * price
-					balanceWithPrice := new(big.Float).SetInt(balance)
-					balanceWithPrice.Quo(balanceWithPrice, new(big.Float).SetFloat64(math.Pow(float64(10), float64(decimal))))
-					balanceWithPrice.Mul(balanceWithPrice, price)
-
-					// g.Log().Info(ctx, "decimal", decimal, "price:", price, "balance:", balance, "balanceWithPrice:", balanceWithPrice)
-
-					balanceF.Add(balanceF, balanceWithPrice)
-				}
-
-				// if balanceF equal 0, then continue
-				if balanceF.Cmp(big.NewFloat(0)) == 0 {
-					continue
-				}
-
-				// 插入结果到 ods_balance_fake 表
-				// 创建预处理语句
-				stmt, err := tx.Prepare("INSERT INTO " + tableName + "(date, address, balance) VALUES($1, $2, $3)")
-				if err != nil {
-					g.Log().Error(ctx, err)
-				}
-				defer stmt.Close()
-
-				_, err = stmt.Exec(dateStr, address, balanceF.Text('f', 18))
-				if err != nil {
-					g.Log().Error(ctx, err)
-				}
-			}
-			g.Log().Info(ctx, "###### start commit:", tableName)
-
-			// 提交事务
-			if err := tx.Commit(); err != nil {
-				g.Log().Error(ctx, err)
-			}
-			g.Log().Info(ctx, "Finish processing date", dateStr)
+			processTask(ctx, dateT, newAddressMap, coinPrices, decimals, taskChan, db)
 			<-taskChan
 		}()
 	}
 
+}
+
+func processTask(
+	ctx context.Context,
+	dateT time.Time,
+	addressMap map[string]map[string]*big.Int,
+	coinPrices map[string]map[string]*big.Float,
+	decimals map[string]int,
+	taskChan chan struct{},
+	db *sql.DB) {
+	tableName := "ods_balance_" + dateT.Format("20060102")
+
+	exists, err := tableExists(db, tableName)
+	if err != nil {
+		g.Log().Error(ctx, err)
+	} else {
+		if exists {
+			g.Log().Info(ctx, "table ", tableName, "exist skip")
+			return
+		} else {
+			createTableSQL := `CREATE TABLE ` + tableName + ` (date VARCHAR(255),address VARCHAR(255),	balance VARCHAR(255));`
+			_, err = db.Exec(createTableSQL)
+			if err != nil {
+				g.Log().Error(ctx, err)
+			}
+			g.Log().Info(ctx, "create table", tableName, "success")
+		}
+	}
+
+	g.Log().Info(ctx, "###### start save to db:", tableName)
+
+	// 插入结果到 ods_balance_fake 表
+	tx, err := db.Begin()
+	if err != nil {
+		g.Log().Error(ctx, err)
+	}
+	defer tx.Rollback()
+
+	dateStr := dateT.Format("2006-01-02")
+	for address, coinBalances := range addressMap {
+		balanceF := new(big.Float)
+		for coinID, balance := range coinBalances {
+			price := coinPrices[coinID][dateStr]
+
+			// 计算balance*历史价格
+			if price == nil {
+				price = new(big.Float)
+			}
+			// change balance to positive
+			if balance.Sign() == -1 {
+				balance = new(big.Int).Neg(balance)
+			}
+			// decimail
+			decimal := decimals[coinID]
+			// balance with decimal * price
+			balanceWithPrice := new(big.Float).SetInt(balance)
+			balanceWithPrice.Quo(balanceWithPrice, new(big.Float).SetFloat64(math.Pow(float64(10), float64(decimal))))
+			balanceWithPrice.Mul(balanceWithPrice, price)
+
+			// g.Log().Info(ctx, "decimal", decimal, "price:", price, "balance:", balance, "balanceWithPrice:", balanceWithPrice)
+
+			balanceF.Add(balanceF, balanceWithPrice)
+		}
+
+		// if balanceF equal 0, then continue
+		if balanceF.Cmp(big.NewFloat(0)) == 0 {
+			continue
+		}
+
+		// 插入结果到 ods_balance_fake 表
+		// 创建预处理语句
+		stmt, err := tx.Prepare("INSERT INTO " + tableName + "(date, address, balance) VALUES($1, $2, $3)")
+		if err != nil {
+			g.Log().Error(ctx, err)
+		}
+		defer stmt.Close()
+
+		_, err = stmt.Exec(dateStr, address, balanceF.Text('f', 18))
+		if err != nil {
+			g.Log().Error(ctx, err)
+		}
+	}
+	g.Log().Info(ctx, "###### start commit:", tableName)
+
+	// 提交事务
+	if err := tx.Commit(); err != nil {
+		g.Log().Error(ctx, err)
+	}
+	g.Log().Info(ctx, "Finish processing date", dateStr)
 }
 
 func tableExists(db *sql.DB, tableName string) (bool, error) {
