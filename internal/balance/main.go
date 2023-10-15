@@ -224,10 +224,25 @@ func processBlanceEvent(ctx context.Context, coin_history_file string) {
 	endDate := time.Date(2023, 10, 13, 0, 0, 0, 0, time.UTC)
 
 	for date := startDate; date.Before(endDate); date = date.AddDate(0, 0, 1) {
-		tableName := "event" + date.Format("20060102")
+
+		// 以日期为后缀的表名
+		tableName := "ods_balance_" + date.Format("20060102")
+		createTableSQL := `
+		CREATE TABLE ` + tableName + ` (
+		date VARCHAR(255),
+		address VARCHAR(255),
+		balance VARCHAR(255)
+		);
+		`
+		_, err = db.Exec(createTableSQL)
+		if err != nil {
+			g.Log().Error(ctx, err)
+		}
+
+		eventTableName := "event" + date.Format("20060102")
 		g.Log().Info(ctx, "###### start get events")
 		// 查询表
-		query := fmt.Sprintf("SELECT coinid, fromaddress, toaddress, value FROM %s", tableName)
+		query := fmt.Sprintf("SELECT coinid, fromaddress, toaddress, value FROM %s", eventTableName)
 		rows, err := db.Query(query)
 		if err != nil {
 			g.Log().Error(ctx, err)
@@ -310,7 +325,7 @@ func processBlanceEvent(ctx context.Context, coin_history_file string) {
 
 			// 插入结果到 ods_balance_fake 表
 			// 创建预处理语句
-			stmt, err := tx.Prepare("INSERT INTO ods_balance_fake(date, address, balance) VALUES($1, $2, $3)")
+			stmt, err := tx.Prepare("INSERT INTO " + tableName + "(date, address, balance) VALUES($1, $2, $3)")
 			if err != nil {
 				g.Log().Error(ctx, err)
 			}
