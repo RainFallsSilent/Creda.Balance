@@ -2,7 +2,7 @@ package rpc
 
 import "fmt"
 
-func GetBlockByHash(hash string) (*TransactionResult, error) {
+func GetTransactionByHash(hash string) (*TransactionResult, error) {
 	resp, err := CallAndUnmarshal("eth_getTransactionByHash", ParamList(hash), CeloRpcConfig)
 	if err != nil {
 		return nil, err
