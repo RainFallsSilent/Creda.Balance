@@ -1,18 +1,20 @@
 package rpc
 
-import "strconv"
+import (
+	"strconv"
+)
 
 type Parameter []string
 
 func ParamList(values ...interface{}) Parameter {
 	param := Parameter{}
 	for _, value := range values {
-		param.Add(value)
+		param = append(param, GetValue(value))
 	}
 	return param
 }
 
-func (param Parameter) Add(value interface{}) Parameter {
+func GetValue(value interface{}) string {
 	switch value.(type) {
 	case int:
 		value = strconv.Itoa(value.(int))
@@ -35,6 +37,5 @@ func (param Parameter) Add(value interface{}) Parameter {
 	case uint64:
 		value = strconv.FormatUint(value.(uint64), 10)
 	}
-	param = append(param, value.(string))
-	return param
+	return value.(string)
 }

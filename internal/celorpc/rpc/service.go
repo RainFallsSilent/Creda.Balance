@@ -1,7 +1,6 @@
 package rpc
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -50,15 +49,22 @@ func CallAndUnmarshal(method string, params Parameter, config *RpcConfig) (inter
 
 func Call(method string, params Parameter, config *RpcConfig) ([]byte, error) {
 	url := config.HttpUrl
-	data, err := json.Marshal(map[string]interface{}{
-		"method": method,
-		"params": params,
-	})
-	if err != nil {
-		return nil, err
-	}
+	var parm string
+	parm = "["
+	for _, p := range params {
+		parm += "\"" + p + "\""
 
-	resp, err := post(url, "application/json", config.User, config.Pass, strings.NewReader(string(data)))
+	}
+	parm += "]"
+	payload := []byte(`{
+		"jsonrpc": "2.0",
+		"method": "` + method + `",
+		"params": ` + parm + `,
+		"id": 1
+	}`)
+
+	fmt.Println("call:", string(payload))
+	resp, err := post(url, "application/json", strings.NewReader(string(payload)))
 	if err != nil {
 		fmt.Println("POST requset err:", err)
 		return nil, err
@@ -84,14 +90,11 @@ func Unmarshal(result interface{}, target interface{}) error {
 	return nil
 }
 
-func post(url string, contentType string, user string, pass string, body io.Reader) (resp *http.Response, err error) {
+func post(url string, contentType string, body io.Reader) (resp *http.Response, err error) {
 	req, err := http.NewRequest("POST", url, body)
 	if err != nil {
 		return nil, err
 	}
-	auth := user + ":" + pass
-	basicAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(auth))
-	req.Header.Set("Authorization", basicAuth)
 	req.Header.Set("Content-Type", contentType)
 
 	client := *http.DefaultClient
@@ -100,24 +103,20 @@ func post(url string, contentType string, user string, pass string, body io.Read
 }
 
 type TransactionResult struct {
-	ID      int    `json:"id"`
-	JsonRPC string `json:"jsonrpc"`
-	Result  struct {
-		BlockHash        string `json:"blockHash"`
-		BlockNumber      string `json:"blockNumber"`
-		ChainId          string `json:"chainId"`
-		From             string `json:"from"`
-		Gas              string `json:"gas"`
-		GasPrice         string `json:"gasPrice"`
-		Hash             string `json:"hash"`
-		Input            string `json:"input"`
-		Nonce            string `json:"nonce"`
-		R                string `json:"r"`
-		S                string `json:"s"`
-		To               string `json:"to"`
-		TransactionIndex string `json:"transactionIndex"`
-		Type             string `json:"type"`
-		V                string `json:"v"`
-		Value            string `json:"value"`
-	} `json:"result"`
+	BlockHash        string `json:"blockHash"`
+	BlockNumber      string `json:"blockNumber"`
+	ChainId          string `json:"chainId"`
+	From             string `json:"from"`
+	Gas              string `json:"gas"`
+	GasPrice         string `json:"gasPrice"`
+	Hash             string `json:"hash"`
+	Input            string `json:"input"`
+	Nonce            string `json:"nonce"`
+	R                string `json:"r"`
+	S                string `json:"s"`
+	To               string `json:"to"`
+	TransactionIndex string `json:"transactionIndex"`
+	Type             string `json:"type"`
+	V                string `json:"v"`
+	Value            string `json:"value"`
 }
